@@ -2,8 +2,8 @@ name: Update Proxies
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # ежедневно в 00:00 UTC
-  workflow_dispatch:  # возможность запуска вручную
+    - cron: '0 0 * * *'   # ежедневно в 00:00 UTC
+  workflow_dispatch:     # ручной запуск
 
 jobs:
   update:
@@ -12,16 +12,42 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Fetch original YAML
         run: |
-          curl -s https://raw.githubusercontent.com/xyfqzy/free-nodes/refs/heads/main/nodes/clash.yaml -o full.yaml
+          curl -fsSL https://raw.githubusercontent.com/xyfqzy/free-nodes/refs/heads/main/nodes/clash.yaml -o full.yaml
 
-      - name: Extract proxies block
+      - name: Extract proxies block (preserve exact lines)
         run: |
-          awk '/^proxies:/ {flag=1; print; next} 
-               flag && /^[^ ]/ {flag=0} 
-               flag {print}' full.yaml > proxies.yaml
+          python3 - <<'PY'
+          import re, sys
+          txt = open('full.yaml', 'rb').read().decode('utf-8', errors='replace').splitlines(keepends=True)
+          start = -1
+          for i, line in enumerate(txt):
+            if re.match(r'^[ \t]*proxies\s*:', line):
+              start = i
+              break
+          if start == -1:
+            # no proxies found -> create empty proxies block and exit normally
+            open('proxies.yaml', 'w', encoding='utf-8').write('proxies: []\n')
+            print('No proxies: found; wrote proxies: []')
+            sys.exit(0)
+          end = len(txt)
+          for j in range(start+1, len(txt)):
+            # stop at next top-level key (non-indented line that contains a colon)
+            if re.match(r'^[^\s].*:', txt[j]):
+              end = j
+              break
+          out = ''.join(txt[start:end])
+          open('proxies.yaml', 'w', encoding='utf-8').write(out)
+          print(f'Extracted proxies lines {start+1}..{end}')
+          PY
+
+      - name: Preview extracted block (first 200 lines)
+        run: sed -n '1,200p' proxies.yaml || true
 
       - name: Commit and push changes
         env:
