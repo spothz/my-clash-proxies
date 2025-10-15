@@ -19,15 +19,16 @@ jobs:
 
       - name: Extract proxies block
         run: |
-          # Находим строку с "proxies:" и сохраняем все строки с отступом после нее
           awk '/^proxies:/ {flag=1; print; next} 
                flag && /^[^ ]/ {flag=0} 
                flag {print}' full.yaml > proxies.yaml
 
       - name: Commit and push changes
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add proxies.yaml
           git diff --cached --quiet || git commit -m "Update proxies"
-          git push
+          git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
