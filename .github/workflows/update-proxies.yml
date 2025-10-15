@@ -14,39 +14,38 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: false   # обязательно, чтобы использовать PAT для push
 
       - name: Fetch original YAML
         run: |
           curl -fsSL https://raw.githubusercontent.com/xyfqzy/free-nodes/refs/heads/main/nodes/clash.yaml -o full.yaml
 
-      - name: Extract proxies block (preserve exact lines)
+      - name: Extract proxies block
         run: |
           python3 - <<'PY'
           import re, sys
+          # читаем полный YAML
           txt = open('full.yaml', 'rb').read().decode('utf-8', errors='replace').splitlines(keepends=True)
           start = -1
           for i, line in enumerate(txt):
-            if re.match(r'^[ \t]*proxies\s*:', line):
-              start = i
-              break
+              if re.match(r'^[ \t]*proxies\s*:', line):
+                  start = i
+                  break
           if start == -1:
-            # no proxies found -> create empty proxies block and exit normally
-            open('proxies.yaml', 'w', encoding='utf-8').write('proxies: []\n')
-            print('No proxies: found; wrote proxies: []')
-            sys.exit(0)
+              open('proxies.yaml', 'w', encoding='utf-8').write('proxies: []\n')
+              print('No proxies block found, wrote empty proxies: []')
+              sys.exit(0)
+          # находим конец блока
           end = len(txt)
           for j in range(start+1, len(txt)):
-            # stop at next top-level key (non-indented line that contains a colon)
-            if re.match(r'^[^\s].*:', txt[j]):
-              end = j
-              break
-          out = ''.join(txt[start:end])
-          open('proxies.yaml', 'w', encoding='utf-8').write(out)
-          print(f'Extracted proxies lines {start+1}..{end}')
+              if re.match(r'^[^\s].*:', txt[j]):
+                  end = j
+                  break
+          open('proxies.yaml', 'w', encoding='utf-8').write(''.join(txt[start:end]))
+          print(f'Extracted proxies block lines {start+1}-{end}')
           PY
 
-      - name: Preview extracted block (first 200 lines)
+      - name: Preview extracted block
         run: sed -n '1,200p' proxies.yaml || true
 
       - name: Commit and push changes
