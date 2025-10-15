@@ -1,0 +1,33 @@
+name: Update Proxies
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # ежедневно в 00:00 UTC
+  workflow_dispatch:  # возможность запуска вручную
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Fetch original YAML
+        run: |
+          curl -s https://raw.githubusercontent.com/xyfqzy/free-nodes/refs/heads/main/nodes/clash.yaml -o full.yaml
+
+      - name: Extract proxies block
+        run: |
+          # Находим строку с "proxies:" и сохраняем все строки с отступом после нее
+          awk '/^proxies:/ {flag=1; print; next} 
+               flag && /^[^ ]/ {flag=0} 
+               flag {print}' full.yaml > proxies.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add proxies.yaml
+          git diff --cached --quiet || git commit -m "Update proxies"
+          git push
