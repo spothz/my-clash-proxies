@@ -1,0 +1,36 @@
+name: Update Clash Proxies
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download source file
+        run: |
+          curl -sL "https://raw.githubusercontent.com/xyfqzy/free-nodes/refs/heads/main/nodes/clash.yaml" -o clash.yaml
+
+      - name: Extract only proxies
+        run: |
+          awk '/^proxies:/,/^proxy-groups:/' clash.yaml > proxies.yaml
+          if ! grep -q '^proxy-groups:' proxies.yaml; then
+            awk '/^proxies:/{flag=1;next}/^[^[:space:]]/{flag=0}flag' clash.yaml >> proxies.yaml
+          fi
+
+      - name: Move final file
+        run: mv proxies.yaml clash.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add clash.yaml
+          git commit -m "Auto-update proxies" || exit 0
+          git push
+
